@@ -24,14 +24,14 @@
     }
 
     .login-container {
-      background: #ffffff10;
+      background: #fffaf0; /* bege mais claro */
       padding: 40px;
       border-radius: 16px;
       box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
-      backdrop-filter: blur(8px);
       text-align: center;
       width: 90%;
       max-width: 400px;
+      color: #333; /* cor de texto escura para contraste */
     }
 
     h2 {
@@ -81,14 +81,12 @@
     <input type="text" id="login" placeholder="Login" />
     <input type="password" id="senha" placeholder="Senha" />
     
-    <!-- hCaptcha widget -->
     <div class="h-captcha" data-sitekey="3c204460-9154-4e4a-9be6-37a2a1727bd0"></div>
 
     <button onclick="verificarLogin()">Entrar</button>
     <div class="error" id="errorMsg"></div>
   </div>
 
-  <!-- Tela do menu será carregada aqui -->
   <iframe id="menuFrame" class="hidden" src="menu.html" style="width:100%; height:100vh; border:none;"></iframe>
 
   <script>
