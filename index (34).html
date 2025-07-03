@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Processador NIR + Plantões</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      padding: 40px;
+      background: #f3f3f3;
+    }
+    .upload-box {
+      border: 2px dashed #007bff;
+      background: white;
+      padding: 50px;
+      cursor: pointer;
+      margin-bottom: 20px;
+      color: #007bff;
+    }
+    .buttons {
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+    }
+    button {
+      padding: 10px 20px;
+      font-weight: bold;
+      cursor: pointer;
+      border: none;
+      border-radius: 6px;
+    }
+    .generate {
+      background-color: #28a745;
+      color: white;
+    }
+    .delete {
+      background-color: #dc3545;
+      color: white;
+    }
+    .loader {
+      margin-top: 20px;
+      display: none;
+    }
+    .spinner {
+      border: 6px solid #f3f3f3;
+      border-top: 6px solid #007bff;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <h2>Arraste ou clique aqui para adicionar o arquivo: <strong>Plantões / NIR</strong></h2>
+  <div class="upload-box" id="drop-area">Clique ou arraste o Excel aqui</div>
+  <input type="file" id="file-input" accept=".xlsx" style="display: none;" />
+  
+  <div class="buttons">
+    <button class="generate" onclick="processFile()">Gerar Excel</button>
+    <button class="delete" onclick="clearFile()">🗑️ Limpar</button>
+  </div>
+
+  <div class="loader" id="loader">
+    <div class="spinner"></div>
+    <p>Gerando Excel...</p>
+  </div>
+
+  <script>
+    let excelFile = null;
+
+    const dropArea = document.getElementById("drop-area");
+    const fileInput = document.getElementById("file-input");
+    const loader = document.getElementById("loader");
+
+    dropArea.addEventListener("click", () => fileInput.click());
+    fileInput.addEventListener("change", (e) => handleFile(e.target.files[0]));
+    dropArea.addEventListener("dragover", (e) => e.preventDefault());
+    dropArea.addEventListener("drop", (e) => {
+      e.preventDefault();
+      if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+    });
+
+    function handleFile(file) {
+      if (!file.name.endsWith(".xlsx")) {
+        alert("Por favor, envie um arquivo .xlsx");
+        return;
+      }
+      excelFile = file;
+      dropArea.innerText = "Arquivo carregado: " + file.name;
+    }
+
+    function clearFile() {
+      excelFile = null;
+      dropArea.innerText = "Clique ou arraste o Excel aqui";
+      fileInput.value = "";
+    }
+
+    async function processFile() {
+      if (!excelFile) return alert("Carregue um arquivo primeiro.");
+      loader.style.display = "block";
+
+      try {
+        const data = await excelFile.arrayBuffer();
+        const workbook = XLSX.read(data);
+
+        // Ler NIR com header na linha 4 (índice 3)
+        const nir_sheet = XLSX.utils.sheet_to_json(workbook.Sheets["NIR"], { header: 1 });
+        const nir_headers = nir_sheet[3];
+        const nir_data = nir_sheet.slice(4).map(row => {
+          let obj = {};
+          nir_headers.forEach((h, i) => obj[h.trim()] = row[i]);
+          return obj;
+        });
+
+        // Ajustar Procedimento 1
+        for (let row of nir_data) {
+          if (row["Procedimento 1"] === "PLANTÃO NIR NOITE") row["Procedimento 1"] = "NIR N";
+          if (row["Procedimento 1"] === "PLANTÃO NIR DIA") row["Procedimento 1"] = "NIR D";
+        }
+
+        // Ler PLANTÕES com header na linha 5 (índice 4)
+        const pl_sheet = XLSX.utils.sheet_to_json(workbook.Sheets["PLANTÕES"], { header: 1 });
+        const pl_headers = pl_sheet[4];
+        const pl_data = pl_sheet.slice(5).map(row => {
+          let obj = {};
+          pl_headers.forEach((h, i) => obj[h.trim()] = row[i]);
+          return obj;
+        });
+
+        // Ajustar função
+        for (let row of pl_data) {
+          if ((row["FUNCÃO"] || "").toUpperCase().trim() === "PLANTONISTA") {
+            const turno = (row["PER"] || "").toLowerCase().trim();
+            row["FUNCÃO"] = turno === "diurno" ? "PLANTONISTA D" : (turno === "noturno" ? "PLANTONISTA N" : row["FUNCÃO"]);
+          }
+        }
+
+        // Unir os dois
+        const unidos = [...nir_data.map(r => ({ origem: "NIR", ...r })), ...pl_data.map(r => ({ origem: "PLANTÃO", ...r }))];
+
+        // Adicionar colunas padronizadas
+        for (let row of unidos) {
+          row.DATA_PROC_PAD = new Date(row["Data do procedimento"] || "");
+          row.DATA_PAD = new Date(row["DATA"] || "");
+          row.NOME_D_PAD = (row["Médico"] || "").toString().trim().toUpperCase();
+          row.NOME_I_PAD = (row["QUEM REALIZOU"] || "").toString().trim().toUpperCase();
+          row.CRM_PAD = (row["CRM"] || "").toString().trim().toUpperCase();
+        }
+
+        // Substituir função quando houver correspondência
+        for (let i = 0; i < unidos.length; i++) {
+          const nir = unidos[i];
+          const proc = (nir["Procedimento 1"] || "").trim();
+          if (!proc) continue;
+
+          for (let j = 0; j < unidos.length; j++) {
+            if (i === j) continue;
+            const alvo = unidos[j];
+
+            if (
+              nir.DATA_PROC_PAD.toDateString() === alvo.DATA_PAD.toDateString() &&
+              nir.NOME_D_PAD === alvo.NOME_I_PAD &&
+              nir.CRM_PAD === alvo.CRM_PAD
+            ) {
+              unidos[j]["FUNCÃO"] = proc;
+            }
+          }
+        }
+
+        // Criar planilhas
+        const wsNIR = XLSX.utils.json_to_sheet(nir_data);
+        const wsPL = XLSX.utils.json_to_sheet(pl_data);
+        const wsUnidos = XLSX.utils.json_to_sheet(unidos);
+
+        const newWB = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(newWB, wsNIR, "NIR");
+        XLSX.utils.book_append_sheet(newWB, wsPL, "PLANTÕES");
+        XLSX.utils.book_append_sheet(newWB, wsUnidos, "NIR_PLANTÕES_UNIDOS");
+
+        XLSX.writeFile(newWB, "arquivo_finalizado.xlsx");
+      } catch (err) {
+        alert("Erro ao processar o arquivo: " + err.message);
+      }
+
+      loader.style.display = "none";
+    }
+  </script>
+</body>
+</html>

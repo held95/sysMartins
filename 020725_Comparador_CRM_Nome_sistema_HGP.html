@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Comparador de Arquivos HOSP PA</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(to right, #2ecc71, #27ae60);
+      color: #fff;
+    }
+
+    .container {
+      max-width: 1000px;
+      margin: auto;
+      padding: 40px;
+      background-color: rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+
+    h1 {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+
+    label {
+      font-weight: bold;
+      display: block;
+      margin-top: 20px;
+    }
+
+    .custom-upload {
+      background: #fff;
+      color: #2c3e50;
+      padding: 10px 20px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      display: inline-block;
+      font-weight: bold;
+      transition: 0.3s ease;
+      margin-top: 10px;
+    }
+
+    .custom-upload:hover {
+      background-color: #ecf0f1;
+    }
+
+    .file-input {
+      display: none;
+    }
+
+    .dropzone {
+      margin-top: 15px;
+      background-color: white;
+      color: #2c3e50;
+      border: 3px dashed #27ae60;
+      padding: 30px;
+      border-radius: 10px;
+      text-align: center;
+      font-weight: bold;
+      cursor: pointer;
+      transition: 0.3s;
+    }
+
+    .dropzone:hover {
+      background-color: #ecf0f1;
+    }
+
+    #relatorio {
+      margin-top: 30px;
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+      color: #2c3e50;
+    }
+
+    #relatorio th, #relatorio td {
+      border: 1px solid #ccc;
+      padding: 10px;
+      text-align: left;
+    }
+
+    #relatorio th {
+      background-color: #dff0d8;
+      color: #2c3e50;
+    }
+
+    .buttons-group {
+      margin-top: 30px;
+      display: flex;
+      justify-content: space-between;
+      gap: 15px;
+      flex-wrap: wrap;
+    }
+
+    .action-btn {
+      background: #fff;
+      color: #27ae60;
+      border: 2px solid #fff;
+      padding: 12px 20px;
+      border-radius: 8px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: 0.3s;
+    }
+
+    .action-btn:hover {
+      background: #27ae60;
+      color: white;
+    }
+
+    .spinner {
+      border: 6px solid #f3f3f3;
+      border-top: 6px solid #3498db;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+      margin: 20px auto;
+      display: none;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    .file-list {
+      margin-top: 10px;
+      color: #fff;
+    }
+
+    .file-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(255,255,255,0.2);
+      padding: 6px 10px;
+      margin-top: 5px;
+      border-radius: 6px;
+    }
+
+    .file-item i {
+      cursor: pointer;
+      color: red;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Comparador de Arquivos HOSP CG PA HGP</h1>
+
+    <label>Upload arquivo "HOSP CG PA":</label>
+    <label class="custom-upload">Upload
+      <input type="file" id="hospPaFile" class="file-input" accept=".xlsx">
+    </label>
+    <div id="hospFileName" style="margin-top: 10px; font-style: italic;"></div>
+
+    <label>Upload arquivos comparativos:</label>
+    <label>⚠️ Certifique-se que os arquivos foram salvos antes de carregá-los ⚠️</label>
+
+    <div id="dropzone" class="dropzone">📂 Arraste os arquivos aqui ou clique para selecionar</div>
+    <input type="file" id="comparativeFiles" class="file-input" accept=".xlsx" multiple>
+    <div id="fileList" class="file-list"></div>
+
+    <div class="buttons-group">
+      <button class="action-btn" onclick="clearFiles()">🗑️ Apagar Itens</button>
+      <button class="action-btn" onclick="gerarPDF()">📄 Gerar PDF</button>
+      <button class="action-btn" onclick="gerarRelatorio()">📋 Gerar Relatório</button>
+    </div>
+
+    <div id="spinner" class="spinner"></div>
+
+    <table id="relatorio">
+      <thead>
+        <tr>
+          <th>Data</th>
+          <th>Nome do Médico</th>
+          <th>CRM</th>
+          <th>Arquivo(s) Repetido(s)</th>
+          <th>Origem no HOSP PA</th>
+        </tr>
+      </thead>
+      <tbody id="relatorioBody"></tbody>
+    </table>
+  </div>
+
+  <script>
+    let registrosHospPA = new Map();
+
+    const comparativeFilesInput = document.getElementById("comparativeFiles");
+    const dropzone = document.getElementById("dropzone");
+    const fileList = document.getElementById("fileList");
+    const spinner = document.getElementById("spinner");
+
+    dropzone.addEventListener("click", () => comparativeFilesInput.click());
+    dropzone.addEventListener("dragover", (e) => { e.preventDefault(); dropzone.style.background = "#dff0d8"; });
+    dropzone.addEventListener("dragleave", () => dropzone.style.background = "white");
+    dropzone.addEventListener("drop", (e) => {
+      e.preventDefault();
+      dropzone.style.background = "white";
+      comparativeFilesInput.files = e.dataTransfer.files;
+      displayFiles();
+    });
+
+    comparativeFilesInput.addEventListener("change", displayFiles);
+
+    // ✅ MOSTRAR NOME DO ARQUIVO HOSP CG PA AO FAZER UPLOAD
+    document.getElementById('hospPaFile').addEventListener('change', function () {
+      const file = this.files[0];
+      if (file) {
+        document.getElementById('hospFileName').innerText = `📁 Arquivo carregado: ${file.name}`;
+      } else {
+        document.getElementById('hospFileName').innerText = '';
+      }
+    });
+
+    function displayFiles() {
+      fileList.innerHTML = '';
+      Array.from(comparativeFilesInput.files).forEach((file, index) => {
+        const div = document.createElement('div');
+        div.className = 'file-item';
+        div.innerHTML = `${file.name} <i onclick="removeFile(${index})">🗑️</i>`;
+        fileList.appendChild(div);
+      });
+    }
+
+    function removeFile(index) {
+      const dt = new DataTransfer();
+      const files = comparativeFilesInput.files;
+      for (let i = 0; i < files.length; i++) {
+        if (i !== index) dt.items.add(files[i]);
+      }
+      comparativeFilesInput.files = dt.files;
+      displayFiles();
+    }
+
+    function clearFiles() {
+      document.getElementById('hospPaFile').value = '';
+      document.getElementById('hospFileName').innerText = '';
+      comparativeFilesInput.value = '';
+      fileList.innerHTML = '';
+      document.getElementById('relatorioBody').innerHTML = '';
+    }
+
+    function gerarPDF() {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+      const headers = [["Data", "Nome do Médico", "CRM", "Arquivo(s) Repetido(s)", "Origem no HOSP PA"]];
+      const data = [];
+
+      const rows = document.querySelectorAll("#relatorio tbody tr");
+      rows.forEach(row => {
+        const cols = row.querySelectorAll("td");
+        const rowData = Array.from(cols).map(col => col.textContent.trim());
+        data.push(rowData);
+      });
+
+      doc.text("Relatório de Conflitos HOSP PA", 14, 15);
+      doc.autoTable({
+        head: headers,
+        body: data,
+        startY: 20,
+        styles: { fontSize: 10, cellWidth: 'wrap' },
+        headStyles: { fillColor: [39, 174, 96] }
+      });
+
+      doc.save("relatorio_HOSP_PA.pdf");
+    }
+
+    function gerarRelatorio() {
+      registrosHospPA.clear();
+      const hospFile = document.getElementById('hospPaFile').files[0];
+      const compFiles = comparativeFilesInput.files;
+
+      if (!hospFile || compFiles.length === 0) {
+        alert('Por favor, envie o arquivo HOSP PA e os arquivos comparativos.');
+        return;
+      }
+
+      spinner.style.display = 'block';
+
+      lerExcel(hospFile, (workbookHosp) => {
+        const hospRegistros = extrairCRMeData(workbookHosp, ['PA', 'PLANTÕES'], true, hospFile.name);
+        hospRegistros.forEach(({ data, crm, nome, aba, linha, coluna }) => {
+          registrosHospPA.set(`${data}|${crm}|${nome.toUpperCase()}`, `(aba: ${aba}, célula: ${coluna}${linha})`);
+        });
+
+        const relatorio = new Map();
+        let arquivosProcessados = 0;
+
+        for (let i = 0; i < compFiles.length; i++) {
+          const file = compFiles[i];
+          lerExcel(file, (workbookComp) => {
+            const comparativos = extrairCRMeData(workbookComp, null, false);
+            comparativos.forEach(({ data, crm, nome, aba, linha, coluna }) => {
+              const key = `${data}|${crm}|${nome.toUpperCase()}`;
+              if (registrosHospPA.has(key)) {
+                if (!relatorio.has(key)) {
+                  relatorio.set(key, {
+                    arquivos: new Set(),
+                    origem: registrosHospPA.get(key)
+                  });
+                }
+                relatorio.get(key).arquivos.add(`${file.name} (aba: ${aba}, célula: ${coluna}${linha})`);
+              }
+            });
+
+            arquivosProcessados++;
+            if (arquivosProcessados === compFiles.length) {
+              exibirRelatorio(relatorio);
+              spinner.style.display = 'none';
+
+              if (relatorio.size === 0) {
+                const corpo = document.getElementById('relatorioBody');
+                const row = document.createElement('tr');
+                row.innerHTML = `<td colspan="5" style="text-align:center; color:red; font-weight:bold;">Nenhum Médico Encontrado</td>`;
+                corpo.appendChild(row);
+              }
+            }
+          });
+        }
+      });
+    }
+
+    function lerExcel(file, callback) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, { type: 'array' });
+        callback(workbook);
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    function normalizarCRM(valor) {
+      let str = String(valor).trim();
+      if (str.endsWith(".0")) str = str.slice(0, -2);
+      return str.replace(/\D/g, '');
+    }
+
+    function padronizarData(input) {
+      if (!input) return null;
+      if (typeof input === 'number') {
+        const date = new Date(Math.round((input - 25569) * 86400 * 1000));
+        return date.toLocaleDateString('pt-BR');
+      } else if (typeof input === 'string') {
+        const parts = input.split('/');
+        if (parts.length === 3) {
+          const [d, m, y] = parts.map(p => p.padStart(2, '0'));
+          return `${d}/${m}/${y}`;
+        }
+      }
+      return null;
+    }
+
+    function extrairCRMeData(workbook, abasPermitidas = null, incluirOrigem = false, origem = null) {
+      const resultados = [];
+      workbook.SheetNames.forEach(sheetName => {
+        const sheetNomeNormalizado = sheetName.trim().toUpperCase();
+        if (abasPermitidas && !abasPermitidas.includes(sheetNomeNormalizado)) return;
+
+        const sheet = workbook.Sheets[sheetName];
+        const dados = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+
+        let ultimaDataValida = null;
+
+        for (let i = 0; i < dados.length; i++) {
+          const row = dados[i];
+          let possivelData = null;
+          for (let d = 0; d < row.length; d++) {
+            possivelData = padronizarData(row[d]);
+            if (possivelData && /^\d{2}\/\d{2}\/\d{4}$/.test(possivelData)) break;
+          }
+
+          if (possivelData) ultimaDataValida = possivelData;
+          if (!ultimaDataValida) continue;
+
+          for (let colIndex = 1; colIndex < row.length; colIndex++) {
+            const cell = row[colIndex];
+            if ((typeof cell === 'number' && cell >= 10000) || (typeof cell === 'string' && /\d{5,}/.test(cell))) {
+              const crm = normalizarCRM(cell);
+              if (crm.length >= 5 && crm.length <= 7) {
+                const nomePossivel = colIndex > 0 ? String(row[colIndex - 1] || "").trim() : "";
+                const registro = {
+                  data: ultimaDataValida,
+                  crm,
+                  nome: nomePossivel,
+                  aba: sheetName,
+                  linha: i + 1,
+                  coluna: XLSX.utils.encode_col(colIndex)
+                };
+                if (incluirOrigem) registro.origem = origem;
+                resultados.push(registro);
+              }
+            }
+          }
+        }
+      });
+      return resultados;
+    }
+
+    function exibirRelatorio(relatorio) {
+      const corpo = document.getElementById('relatorioBody');
+      corpo.innerHTML = '';
+
+      relatorio.forEach(({ arquivos, origem }, key) => {
+        const [data, crm, nome] = key.split('|');
+        const arquivosList = Array.from(arquivos);
+        const row = document.createElement('tr');
+        row.innerHTML = `<td>${data}</td><td>${nome}</td><td>${crm}</td><td>${arquivosList.join(', ')}</td><td>${origem}</td>`;
+        corpo.appendChild(row);
+      });
+    }
+  </script>
+</body>
+</html>
