@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>Gerador de Relatório HMU</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f2f2f2;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2rem;
+    }
+    .container {
+      background: white;
+      padding: 2rem;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      width: 100%;
+      max-width: 600px;
+    }
+    h1 {
+      color: #333;
+      margin-bottom: 1rem;
+    }
+    .upload-group {
+      margin-bottom: 1.5rem;
+    }
+    label {
+      font-weight: bold;
+      display: block;
+      margin-bottom: 0.5rem;
+    }
+    input[type="file"] {
+      padding: 0.5rem;
+      width: 100%;
+    }
+    button {
+      margin-top: 1rem;
+      padding: 1rem 2rem;
+      background: #007bff;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      cursor: pointer;
+    }
+    .status {
+      margin-top: 1.5rem;
+      font-weight: bold;
+      color: green;
+    }
+  </style>
+</head>
+<body>
+  <h1>Gerador de Relatório HMU</h1>
+  <div class="container">
+    <div class="upload-group">
+      <label>CSV - hmu_onco_maio.csv</label>
+      <input type="file" id="csvFile" accept=".csv" />
+    </div>
+    <div class="upload-group">
+      <label>XLSX - Visita OCR maio 2025.xlsx</label>
+      <input type="file" id="ocrFile" accept=".xlsx" />
+    </div>
+    <button onclick="gerarRelatorio()">Gerar Relatório</button>
+    <div class="status" id="status"></div>
+  </div>
+
+  <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+  <script>
+    function extrairNomeCrm(medico) {
+      const match = String(medico).match(/^(.+?)\s*\((\d+)\)/);
+      if (match) return [match[1].trim(), match[2].trim()];
+      return [medico, ""];
+    }
+
+    function formatarData(dataStr) {
+      const partes = dataStr.split("/");
+      if (partes.length === 3) {
+        const [dia, mes, ano] = partes;
+        return `${ano}-${mes.padStart(2, '0')}-${dia.padStart(2, '0')}`;
+      }
+      const d = new Date(dataStr);
+      if (!isNaN(d)) return d.toISOString().split("T")[0];
+      return "";
+    }
+
+    async function gerarRelatorio() {
+      const status = document.getElementById("status");
+      status.textContent = "⏳ Processando arquivos...";
+
+      const csvFile = document.getElementById("csvFile").files[0];
+      const ocrFile = document.getElementById("ocrFile").files[0];
+
+      if (!csvFile || !ocrFile) {
+        status.textContent = "❌ Selecione ambos os arquivos.";
+        return;
+      }
+
+      try {
+        const csvData = await new Promise((resolve, reject) => {
+          Papa.parse(csvFile, {
+            delimiter: ";",
+            encoding: "latin1",
+            header: true,
+            skipEmptyLines: true,
+            complete: result => resolve(result.data),
+            error: err => reject(err)
+          });
+        });
+
+        const dadosProcessados = csvData.map(row => {
+          const [nome, crm] = extrairNomeCrm(row["Médico"] || "");
+          return {
+            ...row,
+            Nome: nome,
+            CRM: crm,
+            "Data do procedimento": formatarData(row["Data do procedimento"] || ""),
+            "Dia da semana": row["Dia da semana"] || "",
+            observacoes: row["Observação"] || ""
+          };
+        });
+
+        const mapa = new Map();
+        const colunasSomadas = [
+          '12 HORAS DIA', 'ACIONAMENTO P1', 'ACIONAMENTO P1 NOTURNO',
+          'ACIONAMENTO P2 DIURNO', 'ACIONAMENTO P2 NOTURNO',
+          'ATENDIMENTO/INTERCONSULTA', 'CIRURGIA ELETIVA', 'SOBREAVISO',
+          'VISITA CIRUGIA GERAL', 'VISITA EM ENFERMARIA',
+          'VISITA EM ENFERMARIA (OCR)', 'VISITA OCR'
+        ];
+
+        for (const row of dadosProcessados) {
+          const chave = `${row.Nome}|${row.CRM}|${row["Data do procedimento"]}`;
+          if (!mapa.has(chave)) {
+            mapa.set(chave, {
+              Nome: row.Nome,
+              CRM: row.CRM,
+              "Data do procedimento": row["Data do procedimento"],
+              "Dia da semana": row["Dia da semana"],
+              observacoes: row.observacoes,
+              ...Object.fromEntries(colunasSomadas.map(c => [c, 0]))
+            });
+          }
+          const acumulado = mapa.get(chave);
+          colunasSomadas.forEach(col => {
+            const valor = parseFloat(row[col]) || 0;
+            acumulado[col] += valor;
+          });
+        }
+
+        const resultado = Array.from(mapa.values());
+
+        resultado.forEach(row => {
+          row['PORTE G'] = 0;
+          if (
+            ["Helio Toshio Ouki", "Matheus Novaes da Silva Abreu"].includes(row.Nome) &&
+            row.observacoes.toLowerCase().includes("porte g")
+          ) {
+            row['PORTE G'] = 1;
+            row['CIRURGIA ELETIVA'] = Math.max(0, row['CIRURGIA ELETIVA'] - 1);
+          }
+        });
+
+        const ocrBuffer = await ocrFile.arrayBuffer();
+        const wbOCR = XLSX.read(ocrBuffer, { type: "array" });
+        const dadosOCR = XLSX.utils.sheet_to_json(wbOCR.Sheets[wbOCR.SheetNames[0]]);
+
+        const mapaOCR = {};
+        dadosOCR.forEach(row => {
+          const dataObj = new Date(row["DATA"]);
+          if (isNaN(dataObj)) return;
+          const data = dataObj.toISOString().split("T")[0];
+          const tipo = String(row[Object.keys(row)[4]]).toUpperCase().trim();
+          const d = Number(row[Object.keys(row)[3]]) || 0;
+          const g = Number(row[Object.keys(row)[6]]) || 0;
+          mapaOCR[data] = (tipo === "FDS" || tipo === "0") ? d : d - g;
+        });
+
+        resultado.forEach(row => {
+          const data = row["Data do procedimento"];
+          row["VISITA EM ENFERMARIA"] = mapaOCR[data] || 0;
+        });
+
+        const colunasOrdenadas = [
+          'Nome', 'CRM', 'Data do procedimento', 'Dia da semana',
+          '12 HORAS DIA', 'ACIONAMENTO P1', 'ACIONAMENTO P2 DIURNO', 'ACIONAMENTO P2 NOTURNO',
+          'ATENDIMENTO/INTERCONSULTA', 'SOBREAVISO',
+          'VISITA OCR', 'VISITA EM ENFERMARIA', 'VISITA CIRUGIA GERAL',
+          'CIRURGIA ELETIVA', 'PORTE G', 'observacoes'
+        ];
+
+        const dadosFinais = resultado.map(row => {
+          const linha = {};
+          colunasOrdenadas.forEach(col => linha[col] = row[col] || 0);
+          return linha;
+        });
+
+        const ws = XLSX.utils.json_to_sheet(dadosFinais);
+        const wbFinal = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wbFinal, ws, "Onco_Maio_Tratado");
+        XLSX.writeFile(wbFinal, "planilha_final_hmu.xlsx");
+
+        status.textContent = "✅ Relatório gerado com sucesso!";
+      } catch (e) {
+        console.error(e);
+        status.textContent = "❌ Erro ao processar os arquivos.";
+      }
+    }
+  </script>
+</body>
+</html>
