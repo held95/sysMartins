@@ -1,26 +1,20 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8" />
-  <title>Menu Principal - Hospitais</title>
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+  <meta charset="UTF-8">
+  <title>Login - Sistema M&G</title>
+  <script src="https://js.hcaptcha.com/1/api.js" async defer></script>
   <style>
-    * {
-      box-sizing: border-box;
-    }
-
     body {
-      margin: 0;
-      padding: 0;
-      height: 100vh;
+      background: #003300;
       font-family: 'Poppins', sans-serif;
-      color: #fff;
+      color: white;
       display: flex;
-      flex-direction: column;
       align-items: center;
       justify-content: center;
+      height: 100vh;
+      margin: 0;
       animation: backgroundAnimation 15s ease infinite;
-      background: #003300;
     }
 
     @keyframes backgroundAnimation {
@@ -29,112 +23,95 @@
       100% { background-color: #003300; }
     }
 
-    h1 {
-      font-size: 2.5rem;
-      margin-bottom: 40px;
-    }
-
-    .menu {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-      gap: 20px;
-      width: 80%;
-      max-width: 700px;
-    }
-
-    .card {
-      background-color: #ffffff22;
-      border: 2px solid #ffffff44;
+    .login-container {
+      background: #ffffff10;
+      padding: 40px;
       border-radius: 16px;
-      padding: 30px 20px;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+      backdrop-filter: blur(8px);
       text-align: center;
-      font-weight: 600;
-      font-size: 18px;
-      color: white;
-      cursor: pointer;
-      transition: all 0.3s ease;
-      backdrop-filter: blur(5px);
+      width: 90%;
+      max-width: 400px;
     }
 
-    .card:hover {
-      transform: scale(1.05);
-      background-color: #ffffff33;
+    h2 {
+      margin-bottom: 20px;
     }
 
-    .sub-menu {
-      display: none;
-      flex-direction: column;
-      align-items: center;
-      gap: 20px;
-      margin-top: 40px;
+    input {
+      width: 100%;
+      padding: 12px;
+      margin: 10px 0;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
     }
 
-    .sub-card {
+    button {
+      padding: 12px 20px;
+      font-size: 16px;
+      font-weight: bold;
       background-color: #00aa55;
+      border: none;
       color: white;
-      border-radius: 10px;
-      padding: 15px 40px;
-      font-size: 18px;
-      font-weight: 600;
+      border-radius: 8px;
       cursor: pointer;
-      transition: background 0.3s;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+      transition: 0.3s;
+      width: 100%;
     }
 
-    .sub-card:hover {
+    button:hover {
       background-color: #007a3d;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    .error {
+      color: #ff6b6b;
+      margin-top: 10px;
+      font-weight: bold;
     }
   </style>
 </head>
 <body>
-  <h1>Menu Principal</h1>
+  <div class="login-container" id="loginScreen">
+    <h2>🔒 Acesso Restrito</h2>
+    <input type="text" id="login" placeholder="Login" />
+    <input type="password" id="senha" placeholder="Senha" />
+    
+    <!-- hCaptcha widget -->
+    <div class="h-captcha" data-sitekey="3c204460-9154-4e4a-9be6-37a2a1727bd0"></div>
 
-  <div class="menu">
-    <div class="card" onclick="toggleSubMenu('hgp')">HGP</div>
-    <div class="card" onclick="toggleSubMenu('hmb')">HMB</div>
-    <div class="card" onclick="toggleSubMenu('hgg')">HGG</div>
-    <div class="card" onclick="toggleSubMenu('hmu')">HMU</div>
-    <div class="card" onclick="toggleSubMenu('zl')">ZL</div>
-    <div class="card" onclick="abrirPagina('https://crm-search.vercel.app/')">CRM Search</div>
+    <button onclick="verificarLogin()">Entrar</button>
+    <div class="error" id="errorMsg"></div>
   </div>
 
-  <!-- Submenu HGP -->
-  <div class="sub-menu" id="submenu-hgp">
-    <div class="sub-card" onclick="abrirPagina('nir-pa.html')">NIR / PA</div>
-    <div class="sub-card">TED</div>
-    <div class="sub-card" onclick="abrirPagina('conferencia-imp.html')">Conferência IMP</div>
-  </div>
-
-  <!-- Submenu HMU -->
-  <div class="sub-menu" id="submenu-hmu">
-    <div class="sub-card">Médicos</div>
-    <div class="sub-card" onclick="abrirPagina('prototipo_hmu.html')">HOSP</div>
-  </div>
-
-  <!-- Submenu ZL -->
-  <div class="sub-menu" id="submenu-zl">
-    <div class="sub-card">Itaim</div>
-    <div class="sub-card">Tiradentes</div>
-    <div class="sub-card" onclick="abrirPagina('https://brasilandiasystem.vercel.app/')">Brasilândia</div>
-    <div class="sub-card">Sorocaba</div>
-    <div class="sub-card">Pedreira</div>
-  </div>
-
-  <!-- Submenus extras caso queira expandir depois -->
-  <div class="sub-menu" id="submenu-hmb"></div>
-  <div class="sub-menu" id="submenu-hgg"></div>
+  <!-- Tela do menu será carregada aqui -->
+  <iframe id="menuFrame" class="hidden" src="menu.html" style="width:100%; height:100vh; border:none;"></iframe>
 
   <script>
-    function toggleSubMenu(hospital) {
-      document.querySelectorAll('.sub-menu').forEach(el => el.style.display = 'none');
-      const submenu = document.getElementById(`submenu-${hospital}`);
-      if (submenu) {
-        submenu.style.display = submenu.style.display === 'flex' ? 'none' : 'flex';
-      }
-    }
+    function verificarLogin() {
+      const login = document.getElementById("login").value.trim();
+      const senha = document.getElementById("senha").value.trim();
+      const token = hcaptcha.getResponse();
 
-    function abrirPagina(url) {
-      window.open(url, '_blank');
+      const loginCorreto = "M&G2025";
+      const senhaCorreta = "M&G!@130717#";
+
+      if (!token) {
+        document.getElementById("errorMsg").innerText = "⚠️ Resolva o Captcha antes de continuar.";
+        return;
+      }
+
+      if (login === loginCorreto && senha === senhaCorreta) {
+        document.getElementById("loginScreen").style.display = "none";
+        document.getElementById("menuFrame").classList.remove("hidden");
+      } else {
+        document.getElementById("errorMsg").innerText = "❌ Login ou senha incorretos.";
+        hcaptcha.reset();
+      }
     }
   </script>
 </body>
