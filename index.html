@@ -91,27 +91,45 @@
 
   <div class="menu">
     <div class="card" onclick="toggleSubMenu('hgp')">HGP</div>
-    <div class="card">HMB</div>
-    <div class="card">HGG</div>
-    <div class="card">HMU</div>
-    <div class="card">ZL</div>
+    <div class="card" onclick="toggleSubMenu('hmb')">HMB</div>
+    <div class="card" onclick="toggleSubMenu('hgg')">HGG</div>
+    <div class="card" onclick="toggleSubMenu('hmu')">HMU</div>
+    <div class="card" onclick="toggleSubMenu('zl')">ZL</div>
     <div class="card" onclick="abrirPagina('https://crm-search.vercel.app/')">CRM Search</div>
   </div>
 
+  <!-- Submenu HGP -->
   <div class="sub-menu" id="submenu-hgp">
     <div class="sub-card" onclick="abrirPagina('nir-pa.html')">NIR / PA</div>
     <div class="sub-card">TED</div>
     <div class="sub-card" onclick="abrirPagina('conferencia-imp.html')">Conferência IMP</div>
   </div>
 
+  <!-- Submenu HMU -->
+  <div class="sub-menu" id="submenu-hmu">
+    <div class="sub-card">Médicos</div>
+    <div class="sub-card" onclick="abrirPagina('prototipo_hmu.html')">HOSP</div>
+  </div>
+
+  <!-- Submenu ZL -->
+  <div class="sub-menu" id="submenu-zl">
+    <div class="sub-card">Itaim</div>
+    <div class="sub-card">Tiradentes</div>
+    <div class="sub-card" onclick="abrirPagina('https://brasilandiasystem.vercel.app/')">Brasilândia</div>
+    <div class="sub-card">Sorocaba</div>
+    <div class="sub-card">Pedreira</div>
+  </div>
+
+  <!-- Submenus extras caso queira expandir depois -->
+  <div class="sub-menu" id="submenu-hmb"></div>
+  <div class="sub-menu" id="submenu-hgg"></div>
+
   <script>
     function toggleSubMenu(hospital) {
+      document.querySelectorAll('.sub-menu').forEach(el => el.style.display = 'none');
       const submenu = document.getElementById(`submenu-${hospital}`);
-      if (submenu.style.display === 'flex') {
-        submenu.style.display = 'none';
-      } else {
-        document.querySelectorAll('.sub-menu').forEach(el => el.style.display = 'none');
-        submenu.style.display = 'flex';
+      if (submenu) {
+        submenu.style.display = submenu.style.display === 'flex' ? 'none' : 'flex';
       }
     }
 
