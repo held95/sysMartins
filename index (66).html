@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Login - Sistema M&G</title>
+  <script src="https://js.hcaptcha.com/1/api.js" async defer></script>
+  <style>
+    body {
+      background: #003300;
+      font-family: 'Poppins', sans-serif;
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+      animation: backgroundAnimation 15s ease infinite;
+    }
+
+    @keyframes backgroundAnimation {
+      0% { background-color: #003300; }
+      50% { background-color: #004d00; }
+      100% { background-color: #003300; }
+    }
+
+    .login-container {
+      background: #ffffff10;
+      padding: 40px;
+      border-radius: 16px;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+      backdrop-filter: blur(8px);
+      text-align: center;
+      width: 90%;
+      max-width: 400px;
+    }
+
+    h2 {
+      margin-bottom: 20px;
+    }
+
+    input {
+      width: 100%;
+      padding: 12px;
+      margin: 10px 0;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+    }
+
+    button {
+      padding: 12px 20px;
+      font-size: 16px;
+      font-weight: bold;
+      background-color: #00aa55;
+      border: none;
+      color: white;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: 0.3s;
+      width: 100%;
+    }
+
+    button:hover {
+      background-color: #007a3d;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    .error {
+      color: #ff6b6b;
+      margin-top: 10px;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <div class="login-container" id="loginScreen">
+    <h2>🔒 Acesso Restrito</h2>
+    <input type="text" id="login" placeholder="Login" />
+    <input type="password" id="senha" placeholder="Senha" />
+    
+    <!-- hCaptcha widget -->
+    <div class="h-captcha" data-sitekey="3c204460-9154-4e4a-9be6-37a2a1727bd0"></div>
+
+    <button onclick="verificarLogin()">Entrar</button>
+    <div class="error" id="errorMsg"></div>
+  </div>
+
+  <!-- Tela do menu será carregada aqui -->
+  <iframe id="menuFrame" class="hidden" src="menu.html" style="width:100%; height:100vh; border:none;"></iframe>
+
+  <script>
+    function verificarLogin() {
+      const login = document.getElementById("login").value.trim();
+      const senha = document.getElementById("senha").value.trim();
+      const token = hcaptcha.getResponse();
+
+      const loginCorreto = "M&G2025";
+      const senhaCorreta = "M&G!@130717#";
+
+      if (!token) {
+        document.getElementById("errorMsg").innerText = "⚠️ Resolva o Captcha antes de continuar.";
+        return;
+      }
+
+      if (login === loginCorreto && senha === senhaCorreta) {
+        document.getElementById("loginScreen").style.display = "none";
+        document.getElementById("menuFrame").classList.remove("hidden");
+      } else {
+        document.getElementById("errorMsg").innerText = "❌ Login ou senha incorretos.";
+        hcaptcha.reset();
+      }
+    }
+  </script>
+</body>
+</html>
